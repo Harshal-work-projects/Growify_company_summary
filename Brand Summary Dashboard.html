@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Brand Summary Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Lora:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body, #root { height: 100%; }
+  body {
+    font-family: 'Lora', Georgia, serif;
+    background: #F5EFE6;
+    color: #2C1F14;
+    -webkit-font-smoothing: antialiased;
+    background-image: radial-gradient(ellipse at 20% 0%, #EDD9C440 0%, transparent 60%),
+                      radial-gradient(ellipse at 80% 100%, #D4C4B020 0%, transparent 60%);
+  }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #C9B9A8; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #B0A090; }
+  @keyframes fadeIn  { from { opacity: 0 } to { opacity: 1 } }
+  @keyframes slideIn { from { transform: translateX(100%) } to { transform: translateX(0) } }
+  @keyframes cardIn  { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+/* ─── TWEAK DEFAULTS ───────────────────────────────────────────────── */
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "accentColor": "#A0522D",
+  "cardColumns": "3",
+  "summaryLines": "2",
+  "showGroupId": true
+}/*EDITMODE-END*/;
+
+/* ─── MOCK DATA ────────────────────────────────────────────────────── */
+const MOCK_DATA = [
+  { id: 1, group_id: "g1", Brand: "Ridhiiee Suuri", week: "2026-04-05 - 2026-04-12",
+    summary: JSON.stringify([
+      { date: "2026-04-09", summary: "Two orders were mentioned: one with an updated address for Thane West, and another where the client would collect the piece from the store. Important Links: - [2026-04-09] Instagram: https://ridhiieesuuri.com/products/rangeela-gold-crush-tissue-lehena-with-embroidered-blouse-and-tissue-dupatta-set-of-3 - [2026-04-09] Instagram: https://ridhiieesuuri.com/products/rangreza-2-0-bandhani-mustard-lehenga-with-embroidered-blouse-and-satin-silk-dupatta-set-of-3 Overall Summary: Two orders were confirmed and delivery addresses updated for Thane West. Client collection from store also arranged." },
+      { date: "2026-04-06", summary: "Discussions on a client's measurements and delivery deadline of May 10th for order #GN1991. Priya is scheduled for a store appointment today. Important Links: - [2026-04-06] Instagram: https://ridhiieesuuri.com/products/tiered-lehenga-with-embroidered-blouse-and-dusty-pink-dupatta-set-of-3 Overall Summary: Measurement confirmations and store appointment scheduling were the main topics." }
+    ])
+  },
+  { id: 2, group_id: "g2", Brand: "Gauri & Nainika", week: "2026-04-05 - 2026-04-12",
+    summary: JSON.stringify([
+      { date: "2026-04-11", summary: "Apala requested an update on the measurements for orders #GN1995 and #GN1996. Important Links: - [2026-04-09] Other: https://www.instagram.com/reel/DVydr2rk_Ua/?igsh=MWVoNjRxMDQycXZ5OQ== - [2026-04-09] Other: https://www.instagram.com/p/DHV-vPWzE7j/?igsh=NGw3a2lvdWdlODFk Overall Summary: The chat revolves around order confirmations, delivery timelines, and client measurements. A payment was processed for #GN1995 and a store appointment was scheduled." },
+      { date: "2026-04-09", summary: "Gauri And Nainika inquired about delivering an order to Mumbai by Saturday, but Apala stated it is not possible. A payment of ₹70,200 was made for #GN1995. Overall Summary: Delivery timeline discussions and payment confirmation." }
+    ])
+  },
+  { id: 3, group_id: "g3", Brand: "Athletifreak India", week: "2026-04-05 - 2026-04-12",
+    summary: JSON.stringify([
+      { date: "2026-04-09", summary: "QuickReply.ai notified Athletifreak India that their WhatsApp message credits are running low and advised a top-up. The team acknowledged and initiated the recharge process. Overall Summary: Credit top-up initiated after low balance alert." }
+    ])
+  },
+  { id: 4, group_id: "g3", Brand: "Matsya x Growify", week: "2026-04-05 - 2026-04-12",
+    summary: JSON.stringify([])
+  },
+];
+
+/* ─── UTILS ────────────────────────────────────────────────────────── */
+const BRAND_COLORS = [
+  "#A0522D","#7B6FA0","#5B7FA6","#4A8A6F","#B87333",
+  "#8B4513","#9E7B5A","#7A6652","#6B8E6B","#C4876A",
+  "#8B7355","#6B8E8E","#A07B5A","#7A7B6B","#8E6B8E",
+];
+
+function getBrandAccent(name) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return BRAND_COLORS[Math.abs(hash) % BRAND_COLORS.length];
+}
+
+function tint(hex, amt = 0.88) {
+  let r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  const mix = c => Math.round(c + (255-c)*amt);
+  return `rgb(${mix(r)},${mix(g)},${mix(b)})`;
+}
+
+function getInitials(name) {
+  return (name||"").split(/\s+/).map(w=>w[0]).join("").toUpperCase().slice(0,2);
+}
+
+function formatDate(d) {
+  try { return new Date(d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}); }
+  catch { return d||""; }
+}
+
+function getUniqueWeeks(data) {
+  return [...new Set(data.map(r=>r.week))].sort();
+}
+
+/* ─── KEY FIX: parseSummaries handles string JSON, array, or null ── */
+function parseSummaries(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed === "null" || trimmed === "[]") return [];
+    try { const p = JSON.parse(trimmed); return Array.isArray(p) ? p : []; }
+    catch { return []; }
+  }
+  return [];
+}
+
+/* ─── KEY FIX: parseEntry extracts bullets + links from summary text ─ */
+function parseEntry(entry) {
+  const text = (entry.summary || entry.dste_summary || "").trim();
+  const dateKey = entry.date || entry.dste;
+
+  // Split at "Important Links:"
+  const splitIdx = text.search(/Important Links\s*[:\-]*/i);
+  const summaryRaw = splitIdx > -1 ? text.slice(0, splitIdx) : text;
+  const linksRaw   = splitIdx > -1 ? text.slice(splitIdx) : "";
+
+  // Extract "Overall Summary" if present (often after links)
+  const overallMatch = (linksRaw || text).match(/Overall Summary\s*:\s*(.+)$/is);
+  const overallText  = overallMatch ? overallMatch[1].trim() : "";
+
+  // Combine for bullets
+  const fullText = [summaryRaw.replace(/Overall Summary\s*:.*/is,""), overallText]
+    .filter(Boolean).join(" ").trim();
+
+  const points = fullText
+    .split(".")
+    .map(s => s.trim())
+    .filter(s => s.length > 8);
+
+  // Extract links — lookahead stops at next " - [date]" or end
+  const linksOnly = linksRaw.replace(/Overall Summary\s*:.*$/is,"");
+  const linkRx = /\[(\d{4}-\d{2}-\d{2})\]\s+([^:]+):\s*(https?:\/\/[^\s]+?)(?=\s+-\s+\[|\s*$)/g;
+  const seen = new Set();
+  const links = [];
+  let m;
+  while ((m = linkRx.exec(linksOnly)) !== null) {
+    const url = m[3].trim();
+    if (seen.has(url)) continue;
+    seen.add(url);
+    // Build human label from URL slug
+    const slug = url.split("/products/").pop()?.split("?")[0]
+               || url.split("/collections/").pop()?.split("?")[0]
+               || "";
+    const label = (slug && slug.length < 100)
+      ? slug.replace(/-set-of-\d+$/,"").replace(/-rts$/,"")
+            .replace(/-/g," ").replace(/\b\w/g,c=>c.toUpperCase()).trim()
+      : m[2].trim(); // fallback: "Instagram", "Document", "Other"
+    links.push({ date: m[1], label, url });
+  }
+
+  const grouped = links.reduce((acc,l)=>{
+    if (!acc[l.date]) acc[l.date]=[];
+    acc[l.date].push(l); return acc;
+  },{});
+
+  return { dateKey, points, links, grouped };
+}
+
+/* ─── ICONS ────────────────────────────────────────────────────────── */
+const Icon = ({ name, size=16, color="currentColor" }) => {
+  const icons = {
+    search:      <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke={color} strokeWidth="1.5"/><path d="M10.5 10.5L13 13" stroke={color} strokeWidth="1.5" strokeLinecap="round"/></svg>,
+    chevronDown: <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+    close:       <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke={color} strokeWidth="1.5" strokeLinecap="round"/></svg>,
+    calendar:    <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><rect x="2" y="3.5" width="12" height="11" rx="2" stroke={color} strokeWidth="1.5"/><path d="M2 7h12M5.5 2v3M10.5 2v3" stroke={color} strokeWidth="1.5" strokeLinecap="round"/></svg>,
+    database:    <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><ellipse cx="8" cy="4.5" rx="5" ry="2" stroke={color} strokeWidth="1.5"/><path d="M3 4.5v7c0 1.1 2.24 2 5 2s5-.9 5-2v-7" stroke={color} strokeWidth="1.5"/><path d="M3 8c0 1.1 2.24 2 5 2s5-.9 5-2" stroke={color} strokeWidth="1.5"/></svg>,
+    tag:         <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><path d="M2 2h5.5l6.5 6.5-5 5L2.5 7V2H2z" stroke={color} strokeWidth="1.5" strokeLinejoin="round"/><circle cx="5.5" cy="5.5" r="1" fill={color}/></svg>,
+    arrowRight:  <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+    loader:      <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke={color} strokeWidth="1.5" strokeDasharray="20 10" strokeLinecap="round"><animateTransform attributeName="transform" type="rotate" from="0 8 8" to="360 8 8" dur="0.8s" repeatCount="indefinite"/></circle></svg>,
+    sort:        <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><path d="M2 4h12M4 8h8M6 12h4" stroke={color} strokeWidth="1.5" strokeLinecap="round"/></svg>,
+    grid:        <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" stroke={color} strokeWidth="1.5"/><rect x="9" y="2" width="5" height="5" rx="1" stroke={color} strokeWidth="1.5"/><rect x="2" y="9" width="5" height="5" rx="1" stroke={color} strokeWidth="1.5"/><rect x="9" y="9" width="5" height="5" rx="1" stroke={color} strokeWidth="1.5"/></svg>,
+    plug:        <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><path d="M6 2v4M10 2v4M4 6h8l-1 5H5L4 6z" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M8 11v3" stroke={color} strokeWidth="1.5" strokeLinecap="round"/></svg>,
+    refresh:     <svg width={size} height={size} viewBox="0 0 16 16" fill="none"><path d="M2 8a6 6 0 1 0 1.5-4L2 2v4h4" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+  };
+  return icons[name] || null;
+};
+
+/* ─── METATAG ──────────────────────────────────────────────────────── */
+function MetaTag({ icon, label }) {
+  return (
+    <span style={{ display:"inline-flex", alignItems:"center", gap:5, fontSize:12, color:"#7A6252",
+      background:"#F2EBE2", borderRadius:6, padding:"3px 8px" }}>
+      <Icon name={icon} size={11} color="#9A8878" /> {label}
+    </span>
+  );
+}
+
+/* ─── STAT CARD ────────────────────────────────────────────────────── */
+function StatCard({ label, value, icon, accent }) {
+  return (
+    <div style={{ background:"#FFFDF9", border:"1.5px solid #E8DDD1", borderRadius:14,
+      padding:"16px 20px", display:"flex", alignItems:"center", gap:14,
+      boxShadow:"0 2px 8px rgba(80,50,20,0.05)" }}>
+      <div style={{ width:40, height:40, borderRadius:11, background:tint(accent,0.85),
+        display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+        <Icon name={icon} size={18} color={accent} />
+      </div>
+      <div>
+        <div style={{ fontSize:24, fontWeight:700, color:"#2C1F14", lineHeight:1,
+          fontFamily:"'Playfair Display', serif" }}>{value}</div>
+        <div style={{ fontSize:11, color:"#B5A898", marginTop:3, letterSpacing:0.5 }}>{label}</div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── BRAND CARD ───────────────────────────────────────────────────── */
+function BrandCard({ record, onClick, summaryLines, showGroupId, accent }) {
+  const [hov, setHov] = useState(false);
+  const brandAccent = getBrandAccent(record.Brand);
+  const entries = parseSummaries(record.summary);
+  const latest = entries[0];
+  const { points } = latest ? parseEntry(latest) : { points: [] };
+  const previewPoints = points.slice(0, summaryLines === "1" ? 1 : 2);
+  const totalLinks = entries.reduce((sum, e) => {
+    const { links } = parseEntry(e);
+    return sum + links.length;
+  }, 0);
+
+  return (
+    <div
+      onClick={() => onClick(record)}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        background: hov ? tint(brandAccent, 0.93) : "#FFFDF9",
+        border: `1.5px solid ${hov ? brandAccent+"70" : "#E8DDD1"}`,
+        borderRadius: 16, padding: "20px 20px 18px",
+        cursor: "pointer", transition: "all 0.2s ease",
+        transform: hov ? "translateY(-2px)" : "none",
+        boxShadow: hov ? `0 10px 32px ${brandAccent}22` : "0 2px 8px rgba(80,50,20,0.05)",
+        animation: "cardIn 0.35s ease both",
+        fontFamily: "'Lora', Georgia, serif",
+      }}
+    >
+      {/* Header row */}
+      <div style={{ display:"flex", alignItems:"flex-start", gap:12, marginBottom:14 }}>
+        <div style={{
+          width:42, height:42, borderRadius:12, flexShrink:0,
+          background: tint(brandAccent, 0.78),
+          display:"flex", alignItems:"center", justifyContent:"center",
+          fontSize:14, fontWeight:700, color: brandAccent,
+          fontFamily:"'Playfair Display', serif",
+        }}>
+          {getInitials(record.Brand)}
+        </div>
+        <div style={{ flex:1, minWidth:0 }}>
+          {/* FULL brand name — no truncation */}
+          <div style={{
+            fontWeight:700, fontSize:14, color:"#2C1F14", lineHeight:1.3,
+            fontFamily:"'Playfair Display', serif",
+            wordBreak:"break-word",
+          }}>
+            {record.Brand}
+          </div>
+          {showGroupId && (
+            <div style={{ fontSize:10, color:"#B5A898", marginTop:3,
+              overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+              {record.group_id}
+            </div>
+          )}
+        </div>
+        <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4, flexShrink:0 }}>
+          <span style={{
+            fontSize:10, fontWeight:600,
+            color: entries.length > 0 ? brandAccent : "#C4BAB0",
+            background: entries.length > 0 ? tint(brandAccent,0.88) : "#F5F0EA",
+            borderRadius:20, padding:"2px 9px", whiteSpace:"nowrap",
+          }}>
+            {entries.length} {entries.length===1?"entry":"entries"}
+          </span>
+          {totalLinks > 0 && (
+            <span style={{ fontSize:10, color:"#B5A898" }}>🔗 {totalLinks}</span>
+          )}
+        </div>
+      </div>
+
+      {/* Week badge */}
+      <div style={{ fontSize:10, color:"#B5A898", marginBottom:12, letterSpacing:0.3 }}>
+        {record.week}
+      </div>
+
+      {/* Divider */}
+      <div style={{ height:1, background:`${brandAccent}18`, marginBottom:12 }} />
+
+      {/* Summary preview */}
+      {entries.length === 0 ? (
+        <p style={{ fontSize:12, color:"#C4BAB0", fontStyle:"italic", margin:0 }}>
+          No summaries available.
+        </p>
+      ) : (
+        <>
+          <div style={{ fontSize:9, fontWeight:700, letterSpacing:2,
+            color:brandAccent, textTransform:"uppercase", marginBottom:8, opacity:0.8 }}>
+            Latest · {formatDate(latest.date || latest.dste)}
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+            {previewPoints.map((pt,i) => (
+              <div key={i} style={{ display:"flex", gap:8, alignItems:"flex-start" }}>
+                <span style={{ width:4, height:4, borderRadius:"50%", background:brandAccent,
+                  flexShrink:0, marginTop:6 }} />
+                <span style={{ fontSize:12, color:"#5C4A3A", lineHeight:1.7, fontStyle:"italic",
+                  overflow:"hidden", display:"-webkit-box",
+                  WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>
+                  {pt}
+                </span>
+              </div>
+            ))}
+            {entries.length > 1 && (
+              <div style={{ fontSize:11, color:brandAccent, fontWeight:600,
+                display:"flex", alignItems:"center", gap:4, marginTop:2 }}>
+                +{entries.length-1} more entries
+                <Icon name="arrowRight" size={12} color={brandAccent} />
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ─── SIDE PANEL ───────────────────────────────────────────────────── */
+function SidePanel({ record, onClose, accent }) {
+  const [openLinks, setOpenLinks] = useState({});
+  const toggleLinks = i => setOpenLinks(p => ({...p,[i]:!p[i]}));
+  const entries = parseSummaries(record.summary);
+  const brandAccent = getBrandAccent(record.Brand);
+
+  useEffect(() => {
+    const h = e => { if (e.key==="Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
+
+  return (
+    <>
+      <div onClick={onClose} style={{
+        position:"fixed", inset:0, background:"rgba(44,31,20,0.2)", zIndex:100,
+        animation:"fadeIn 0.2s ease", backdropFilter:"blur(2px)"
+      }} />
+      <div style={{
+        position:"fixed", top:0, right:0, bottom:0, width:"min(500px, 95vw)",
+        background:"#FFFDF9", zIndex:101,
+        borderLeft:"1.5px solid #E5D9CC",
+        boxShadow:"-12px 0 48px rgba(44,31,20,0.1)",
+        display:"flex", flexDirection:"column",
+        animation:"slideIn 0.28s cubic-bezier(0.22,1,0.36,1)",
+        fontFamily:"'Lora', Georgia, serif",
+      }}>
+        {/* Header */}
+        <div style={{ padding:"24px 28px 20px", borderBottom:"1.5px solid #EDE4D8", flexShrink:0 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+            <div style={{
+              width:50, height:50, borderRadius:13, flexShrink:0,
+              background:tint(brandAccent,0.78),
+              display:"flex", alignItems:"center", justifyContent:"center",
+              fontSize:17, fontWeight:700, color:brandAccent,
+              fontFamily:"'Playfair Display', serif",
+            }}>
+              {getInitials(record.Brand)}
+            </div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:18, fontWeight:700, color:"#2C1F14",
+                fontFamily:"'Playfair Display', serif", lineHeight:1.25 }}>
+                {record.Brand}
+              </div>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:5, flexWrap:"wrap" }}>
+                <span style={{ fontSize:12, color:"#9A8878", display:"flex", alignItems:"center", gap:4 }}>
+                  <Icon name="calendar" size={12} color="#B5A898" /> {record.week}
+                </span>
+                <span style={{ fontSize:12, color:"#C4BAB0" }}>·</span>
+                <span style={{ fontSize:12, color:"#9A8878" }}>{entries.length} {entries.length===1?"entry":"entries"}</span>
+              </div>
+            </div>
+            <button onClick={onClose} style={{
+              width:32, height:32, borderRadius:8, border:"1.5px solid #DDD0C0",
+              background:"#F9F4EE", cursor:"pointer", display:"flex",
+              alignItems:"center", justifyContent:"center", flexShrink:0,
+              color:"#9A8878", fontSize:14,
+            }}>✕</button>
+          </div>
+          <div style={{ display:"flex", gap:8, marginTop:14, flexWrap:"wrap" }}>
+            {record.group_id && <MetaTag icon="tag" label={`Group: ${record.group_id}`} />}
+            {record.id && <MetaTag icon="database" label={`ID: ${record.id}`} />}
+          </div>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex:1, overflowY:"auto", padding:"24px 28px" }}>
+          <div style={{ fontSize:10, fontWeight:700, color:"#C4B5A5",
+            letterSpacing:2, textTransform:"uppercase", marginBottom:20 }}>
+            Daily Summaries
+          </div>
+
+          {entries.length === 0 ? (
+            <p style={{ color:"#C4BAB0", fontSize:13, fontStyle:"italic" }}>
+              No summaries available this period.
+            </p>
+          ) : (
+            <div style={{ display:"flex", flexDirection:"column" }}>
+              {entries.map((entry, i) => {
+                const { dateKey, points, links, grouped } = parseEntry(entry);
+                const isOpen = openLinks[i];
+
+                return (
+                  <div key={i} style={{ display:"flex", gap:0, position:"relative" }}>
+                    {/* Timeline */}
+                    <div style={{ display:"flex", flexDirection:"column", alignItems:"center",
+                      marginRight:16, width:18, flexShrink:0 }}>
+                      <div style={{ width:10, height:10, borderRadius:"50%",
+                        background:brandAccent, border:`2px solid ${brandAccent}33`,
+                        marginTop:4, zIndex:1, flexShrink:0 }} />
+                      {i < entries.length-1 && (
+                        <div style={{ width:2, flex:1, background:"#EDE4D8", marginTop:4 }} />
+                      )}
+                    </div>
+
+                    {/* Content */}
+                    <div style={{ flex:1, paddingBottom: i < entries.length-1 ? 28 : 0 }}>
+
+                      {/* Date pill */}
+                      <div style={{
+                        display:"inline-flex", alignItems:"center", gap:6,
+                        background:tint(brandAccent,0.88), borderRadius:20,
+                        padding:"3px 12px", marginBottom:14,
+                        fontSize:11, fontWeight:600, color:brandAccent,
+                      }}>
+                        {formatDate(dateKey)}
+                      </div>
+
+                      {/* Summary label */}
+                      <div style={{ fontSize:9, fontWeight:700, letterSpacing:2,
+                        color:"#C4B5A5", textTransform:"uppercase", marginBottom:10 }}>
+                        Summary
+                      </div>
+
+                      {/* Bullet points */}
+                      <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:16 }}>
+                        {points.length === 0 ? (
+                          <p style={{ fontSize:13, color:"#C4BAB0", fontStyle:"italic", margin:0 }}>
+                            No summary text found.
+                          </p>
+                        ) : points.map((pt,j) => (
+                          <div key={j} style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
+                            <span style={{ width:5, height:5, borderRadius:"50%",
+                              background:brandAccent, flexShrink:0, marginTop:7 }} />
+                            <span style={{ fontSize:13, color:"#4A3728", lineHeight:1.75, fontStyle:"italic" }}>
+                              {pt}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Links toggle */}
+                      {links.length > 0 && (
+                        <div>
+                          <button
+                            onClick={() => toggleLinks(i)}
+                            style={{
+                              display:"inline-flex", alignItems:"center", gap:7,
+                              background: isOpen ? brandAccent : "white",
+                              color: isOpen ? "white" : brandAccent,
+                              border:`1.5px solid ${brandAccent}`,
+                              borderRadius:20, padding:"5px 14px",
+                              fontSize:11, fontWeight:700, letterSpacing:0.8,
+                              textTransform:"uppercase", cursor:"pointer",
+                              transition:"all 0.18s ease",
+                              fontFamily:"'Lora', serif",
+                              marginBottom: isOpen ? 10 : 0,
+                            }}
+                          >
+                            🔗 Links ({links.length})
+                            <span style={{ fontSize:8 }}>{isOpen ? "▲" : "▼"}</span>
+                          </button>
+
+                          {isOpen && (
+                            <div style={{ border:"1px solid #EDE4D8", borderRadius:10,
+                              overflow:"hidden", background:"white" }}>
+                              {Object.entries(grouped).map(([date,items],gi) => (
+                                <div key={date}>
+                                  <div style={{
+                                    padding:"7px 14px", background:tint(brandAccent,0.9),
+                                    fontSize:10, fontWeight:700, color:brandAccent,
+                                    letterSpacing:1, textTransform:"uppercase",
+                                    borderTop: gi>0 ? "1px solid #F3EDE6" : "none",
+                                  }}>
+                                    {formatDate(date)}
+                                  </div>
+                                  {items.map((link,li) => (
+                                    <div key={li} style={{
+                                      display:"flex", alignItems:"flex-start", gap:10,
+                                      padding:"10px 14px", borderTop:"1px solid #FAF6F1",
+                                    }}>
+                                      <span style={{ width:4, height:4, borderRadius:"50%",
+                                        background:"#D4C4B0", flexShrink:0, marginTop:5 }} />
+                                      <a href={link.url} target="_blank" rel="noreferrer"
+                                        style={{ fontSize:12, color:"#4A3728",
+                                          textDecoration:"none",
+                                          borderBottom:`1px dashed ${brandAccent}80`,
+                                          lineHeight:1.6, paddingBottom:1,
+                                          wordBreak:"break-word",
+                                        }}>
+                                        {link.label}
+                                      </a>
+                                    </div>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ─── CONNECT SCREEN ───────────────────────────────────────────────── */
+function ConnectScreen({ onConnect, tweaks }) {
+  const [url, setUrl]     = useState(localStorage.getItem("sb_url")   || "");
+  const [key, setKey]     = useState(localStorage.getItem("sb_key")   || "");
+  const [table, setTable] = useState(localStorage.getItem("sb_table") || "");
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState("");
+  const accent = tweaks.accentColor;
+
+  async function handleConnect(e) {
+    e.preventDefault();
+    setError("");
+    if (!url||!key||!table) { setError("All fields are required."); return; }
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `${url.replace(/\/$/,"")}/rest/v1/${table}?select=*&limit=500`,
+        { headers:{ apikey:key, Authorization:`Bearer ${key}`, "Content-Type":"application/json" } }
+      );
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      const data = await res.json();
+      localStorage.setItem("sb_url",url);
+      localStorage.setItem("sb_key",key);
+      localStorage.setItem("sb_table",table);
+      onConnect(data,{url,key,table});
+    } catch(err) { setError(`Connection failed: ${err.message}`); }
+    setLoading(false);
+  }
+
+  return (
+    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center",
+      background:"#F5EFE6", padding:24 }}>
+      <div style={{ width:"100%", maxWidth:440 }}>
+        <div style={{ textAlign:"center", marginBottom:40 }}>
+          <div style={{ width:52, height:52, borderRadius:14,
+            background:`linear-gradient(135deg, ${accent}, ${accent}AA)`,
+            display:"inline-flex", alignItems:"center", justifyContent:"center", marginBottom:16 }}>
+            <Icon name="grid" size={24} color="#fff" />
+          </div>
+          <h1 style={{ fontSize:24, fontWeight:700, color:"#2C1F14",
+            fontFamily:"'Playfair Display', serif", letterSpacing:"-0.3px" }}>
+            Brand Summary
+          </h1>
+          <p style={{ color:"#9A8878", fontSize:14, marginTop:8, fontStyle:"italic" }}>
+            Connect your Supabase table to get started
+          </p>
+        </div>
+
+        <div style={{ background:"#FFFDF9", borderRadius:18, border:"1.5px solid #E8DDD1",
+          padding:32, boxShadow:"0 4px 24px rgba(80,50,20,0.08)" }}>
+          <form onSubmit={handleConnect}>
+            {[
+              { label:"Supabase URL", ph:"https://xxxxx.supabase.co", val:url, set:setUrl, type:"text" },
+              { label:"API Key (anon or service)", ph:"eyJhbGci...", val:key, set:setKey, type:"password" },
+              { label:"Table Name", ph:"brand_summaries", val:table, set:setTable, type:"text" },
+            ].map(f => (
+              <div key={f.label} style={{ marginBottom:16 }}>
+                <label style={{ display:"block", fontSize:12, fontWeight:600, color:"#7A6252",
+                  marginBottom:6, letterSpacing:0.3 }}>{f.label}</label>
+                <input type={f.type} placeholder={f.ph} value={f.val}
+                  onChange={e=>f.set(e.target.value)}
+                  style={{ width:"100%", padding:"10px 13px", borderRadius:9, fontSize:13,
+                    fontFamily:"inherit", border:"1.5px solid #DDD0C0", outline:"none",
+                    background:"#FAF6F1", color:"#2C1F14",
+                    transition:"border-color 0.15s",
+                  }}
+                  onFocus={e=>e.target.style.borderColor=accent}
+                  onBlur={e=>e.target.style.borderColor="#DDD0C0"}
+                />
+              </div>
+            ))}
+
+            {error && (
+              <div style={{ background:"#FEF2F2", border:"1px solid #FECACA", borderRadius:8,
+                padding:"10px 14px", fontSize:13, color:"#DC2626", marginBottom:16 }}>{error}</div>
+            )}
+
+            <button type="submit" disabled={loading} style={{
+              width:"100%", padding:"12px 0", borderRadius:10, border:"none",
+              cursor: loading ? "not-allowed" : "pointer",
+              background:`linear-gradient(135deg, ${accent}, ${accent}CC)`,
+              color:"#fff", fontSize:14, fontWeight:600, fontFamily:"inherit",
+              display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+              opacity: loading ? 0.7 : 1,
+            }}>
+              {loading ? <><Icon name="loader" size={16} color="#fff"/>Connecting…</> : <><Icon name="plug" size={16} color="#fff"/>Connect</>}
+            </button>
+          </form>
+
+          <div style={{ display:"flex", alignItems:"center", gap:12, margin:"20px 0" }}>
+            <div style={{ flex:1, height:1, background:"#E8DDD1" }} />
+            <span style={{ color:"#C4B5A5", fontSize:12 }}>OR</span>
+            <div style={{ flex:1, height:1, background:"#E8DDD1" }} />
+          </div>
+
+          <button onClick={() => onConnect(MOCK_DATA,{url:"demo",key:"demo",table:"brand_summaries"})}
+            style={{ width:"100%", padding:"11px 0", borderRadius:10,
+              border:"1.5px solid #DDD0C0", cursor:"pointer", background:"#FAF6F1",
+              color:"#7A6252", fontSize:13, fontWeight:500, fontFamily:"inherit",
+              display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+            }}>
+            <Icon name="database" size={16} color="#9A8878" /> Try with demo data
+          </button>
+        </div>
+        <p style={{ textAlign:"center", color:"#C4B5A5", fontSize:12, marginTop:20, fontStyle:"italic" }}>
+          Credentials stored only in your browser's local storage.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ─── DASHBOARD ────────────────────────────────────────────────────── */
+function Dashboard({ data, conn, onDisconnect, tweaks }) {
+  const [search,     setSearch]     = useState("");
+  const [weekFilter, setWeekFilter] = useState("all");
+  const [sortBy,     setSortBy]     = useState("brand");
+  const [selected,   setSelected]   = useState(null);
+  const [loading,    setLoading]    = useState(false);
+  const [records,    setRecords]    = useState(data);
+
+  const accent = tweaks.accentColor;
+  const cols   = parseInt(tweaks.cardColumns) || 3;
+  const weeks  = getUniqueWeeks(records);
+  const brands = [...new Set(records.map(r=>r.Brand))];
+  const totalEntries = records.reduce((s,r)=>s+parseSummaries(r.summary).length,0);
+
+  let filtered = records.filter(r => {
+    const matchBrand = (r.Brand||"").toLowerCase().includes(search.toLowerCase());
+    const matchWeek  = weekFilter==="all" || r.week===weekFilter;
+    return matchBrand && matchWeek;
+  });
+
+  if (sortBy==="brand")   filtered.sort((a,b)=>a.Brand.localeCompare(b.Brand));
+  if (sortBy==="week")    filtered.sort((a,b)=>a.week.localeCompare(b.week));
+  if (sortBy==="entries") filtered.sort((a,b)=>parseSummaries(b.summary).length - parseSummaries(a.summary).length);
+
+  async function handleRefresh() {
+    if (conn.url==="demo") { setRecords(MOCK_DATA); return; }
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `${conn.url.replace(/\/$/,"")}/rest/v1/${conn.table}?select=*&limit=500`,
+        { headers:{ apikey:conn.key, Authorization:`Bearer ${conn.key}` } }
+      );
+      if (!res.ok) throw new Error(res.statusText);
+      setRecords(await res.json());
+    } catch(e) { alert("Refresh failed: " + e.message); }
+    setLoading(false);
+  }
+
+  return (
+    <div style={{ minHeight:"100vh", background:"#F5EFE6",
+      backgroundImage:"radial-gradient(ellipse at 20% 0%, #EDD9C430 0%, transparent 60%)" }}>
+
+      {/* Nav */}
+      <nav style={{ background:"rgba(255,252,248,0.95)", backdropFilter:"blur(12px)",
+        borderBottom:"1.5px solid #E5D9CC", padding:"0 32px",
+        display:"flex", alignItems:"center", height:60, gap:14,
+        position:"sticky", top:0, zIndex:50 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10, flex:1 }}>
+          <div style={{ width:32, height:32, borderRadius:9,
+            background:`linear-gradient(135deg,${accent},${accent}BB)`,
+            display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <Icon name="grid" size={16} color="#fff" />
+          </div>
+          <span style={{ fontWeight:700, fontSize:16, color:"#2C1F14",
+            fontFamily:"'Playfair Display', serif", letterSpacing:"-0.2px" }}>
+            Brand Summary
+          </span>
+          <span style={{ fontSize:13, color:"#D4C4B0", marginLeft:4 }}>/</span>
+          <span style={{ fontSize:12, color:"#9A8878", fontFamily:"monospace" }}>{conn.table}</span>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <button onClick={handleRefresh} disabled={loading} style={{
+            display:"flex", alignItems:"center", gap:6, padding:"7px 13px", borderRadius:8,
+            border:"1.5px solid #DDD0C0", background:"#FAF6F1", cursor:"pointer",
+            fontSize:12, color:"#7A6252", fontFamily:"inherit",
+          }}>
+            <Icon name="refresh" size={13} color={loading ? accent : "#9A8878"} />
+            {loading?"Refreshing…":"Refresh"}
+          </button>
+          <button onClick={onDisconnect} style={{
+            display:"flex", alignItems:"center", gap:6, padding:"7px 13px", borderRadius:8,
+            border:"1.5px solid #DDD0C0", background:"#FAF6F1", cursor:"pointer",
+            fontSize:12, color:"#9A8878", fontFamily:"inherit",
+          }}>
+            <Icon name="plug" size={13} color="#B5A898" /> Disconnect
+          </button>
+        </div>
+      </nav>
+
+      <main style={{ maxWidth:1300, margin:"0 auto", padding:"28px 32px 80px" }}>
+        {/* Stats */}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",
+          gap:14, marginBottom:24 }}>
+          <StatCard label="Total Records"  value={records.length} icon="database" accent={accent} />
+          <StatCard label="Unique Brands"  value={brands.length}  icon="tag"      accent={accent} />
+          <StatCard label="Weeks Covered"  value={weeks.length}   icon="calendar" accent={accent} />
+          <StatCard label="Total Entries"  value={totalEntries}   icon="grid"     accent={accent} />
+        </div>
+
+        {/* Filter bar */}
+        <div style={{ background:"#FFFDF9", border:"1.5px solid #E8DDD1", borderRadius:14,
+          padding:"14px 18px", display:"flex", gap:12, alignItems:"center",
+          marginBottom:20, flexWrap:"wrap",
+          boxShadow:"0 2px 8px rgba(80,50,20,0.04)" }}>
+          <div style={{ position:"relative", flex:"1 1 200px", minWidth:180 }}>
+            <span style={{ position:"absolute", left:11, top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }}>
+              <Icon name="search" size={14} color="#C4B5A5" />
+            </span>
+            <input placeholder="Search brand…" value={search}
+              onChange={e=>setSearch(e.target.value)}
+              style={{ width:"100%", padding:"9px 12px 9px 34px", borderRadius:9,
+                border:"1.5px solid #DDD0C0", fontSize:13, fontFamily:"inherit",
+                outline:"none", color:"#2C1F14", background:"#FAF6F1",
+                transition:"border-color 0.15s",
+              }}
+              onFocus={e=>e.target.style.borderColor=accent}
+              onBlur={e=>e.target.style.borderColor="#DDD0C0"}
+            />
+          </div>
+
+          {[
+            { val:weekFilter, set:setWeekFilter, opts:[["all","All Weeks"],...weeks.map(w=>[w,w])] },
+            { val:sortBy, set:setSortBy, opts:[["brand","Sort: Brand A–Z"],["week","Sort: Week"],["entries","Sort: Most Entries"]] },
+          ].map((sel,si) => (
+            <div key={si} style={{ position:"relative", flexShrink:0 }}>
+              <select value={sel.val} onChange={e=>sel.set(e.target.value)} style={{
+                appearance:"none", padding:"9px 32px 9px 13px", borderRadius:9,
+                border:"1.5px solid #DDD0C0", fontSize:13, fontFamily:"inherit",
+                background:"#FAF6F1", color:"#5C4A3A", cursor:"pointer", outline:"none",
+              }}>
+                {sel.opts.map(([v,l])=><option key={v} value={v}>{l}</option>)}
+              </select>
+              <span style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }}>
+                <Icon name="chevronDown" size={13} color="#B5A898" />
+              </span>
+            </div>
+          ))}
+
+          <div style={{ marginLeft:"auto", fontSize:12, color:"#B5A898", whiteSpace:"nowrap",
+            fontStyle:"italic" }}>
+            {filtered.length} record{filtered.length!==1?"s":""}
+          </div>
+        </div>
+
+        {/* Cards */}
+        {filtered.length === 0 ? (
+          <div style={{ textAlign:"center", padding:"80px 0", color:"#C4B5A5" }}>
+            <p style={{ fontSize:15, fontStyle:"italic" }}>No records match your filters.</p>
+          </div>
+        ) : (
+          <div style={{
+            display:"grid",
+            gridTemplateColumns:`repeat(${cols}, minmax(0,1fr))`,
+            gap:16
+          }}>
+            {filtered.map((r,i) => (
+              <div key={r.id||i} style={{ animationDelay:`${i*0.03}s` }}>
+                <BrandCard
+                  record={r} onClick={setSelected}
+                  summaryLines={tweaks.summaryLines}
+                  showGroupId={tweaks.showGroupId}
+                  accent={accent}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </main>
+
+      {selected && <SidePanel record={selected} onClose={()=>setSelected(null)} accent={accent} />}
+    </div>
+  );
+}
+
+/* ─── TWEAKS PANEL ─────────────────────────────────────────────────── */
+function TweaksPanel({ tweaks, setTweaks, visible }) {
+  if (!visible) return null;
+  function set(key, val) {
+    const next = {...tweaks,[key]:val};
+    setTweaks(next);
+    window.parent.postMessage({type:"__edit_mode_set_keys",edits:next},"*");
+  }
+  const swatches = ["#A0522D","#7B6FA0","#5B7FA6","#4A8A6F","#8B4513","#C4876A","#6B8E6B","#8B7355"];
+  return (
+    <div style={{ position:"fixed", bottom:20, right:20, zIndex:200, width:260,
+      background:"#FFFDF9", border:"1.5px solid #E8DDD1", borderRadius:16,
+      boxShadow:"0 8px 32px rgba(80,50,20,0.12)", padding:20, fontFamily:"'Lora', serif" }}>
+      <div style={{ fontSize:11, fontWeight:700, color:"#7A6252", letterSpacing:1.5,
+        textTransform:"uppercase", marginBottom:16 }}>Tweaks</div>
+
+      <div style={{ marginBottom:16 }}>
+        <label style={{ fontSize:12, color:"#9A8878", display:"block", marginBottom:8 }}>Accent Color</label>
+        <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
+          {swatches.map(c=>(
+            <button key={c} onClick={()=>set("accentColor",c)} style={{
+              width:24, height:24, borderRadius:6, background:c, padding:0,
+              border: tweaks.accentColor===c ? "2.5px solid #2C1F14" : "2px solid transparent",
+              cursor:"pointer",
+            }} />
+          ))}
+        </div>
+      </div>
+
+      <div style={{ marginBottom:16 }}>
+        <label style={{ fontSize:12, color:"#9A8878", display:"block", marginBottom:6 }}>
+          Columns: {tweaks.cardColumns}
+        </label>
+        <input type="range" min="1" max="4" step="1" value={tweaks.cardColumns}
+          onChange={e=>set("cardColumns",e.target.value)}
+          style={{ width:"100%", accentColor:tweaks.accentColor }} />
+        <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"#C4B5A5" }}>
+          <span>1</span><span>2</span><span>3</span><span>4</span>
+        </div>
+      </div>
+
+      <div style={{ marginBottom:16 }}>
+        <label style={{ fontSize:12, color:"#9A8878", display:"block", marginBottom:6 }}>Preview Lines</label>
+        <div style={{ display:"flex", gap:6 }}>
+          {["1","2"].map(v=>(
+            <button key={v} onClick={()=>set("summaryLines",v)} style={{
+              flex:1, padding:"6px 0", borderRadius:7, fontSize:12,
+              border:`1.5px solid ${tweaks.summaryLines===v ? tweaks.accentColor : "#DDD0C0"}`,
+              background: tweaks.summaryLines===v ? tint(tweaks.accentColor,0.88) : "#FAF6F1",
+              color: tweaks.summaryLines===v ? tweaks.accentColor : "#7A6252",
+              cursor:"pointer", fontFamily:"inherit",
+            }}>
+              {v==="1"?"Compact":"Normal"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <label style={{ fontSize:12, color:"#9A8878" }}>Show Group ID</label>
+        <button onClick={()=>set("showGroupId",!tweaks.showGroupId)} style={{
+          width:38, height:22, borderRadius:11, padding:0,
+          background: tweaks.showGroupId ? tweaks.accentColor : "#DDD0C0",
+          border:"none", cursor:"pointer", position:"relative", transition:"background 0.2s",
+        }}>
+          <span style={{
+            position:"absolute", top:2,
+            left: tweaks.showGroupId ? 18 : 2,
+            width:18, height:18, borderRadius:"50%", background:"#fff",
+            transition:"left 0.2s",
+          }} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ─── APP ROOT ─────────────────────────────────────────────────────── */
+function App() {
+  const [tweaks, setTweaks] = useState(TWEAK_DEFAULTS);
+  const [tweaksVisible, setTweaksVisible] = useState(false);
+  const [conn, setConn] = useState(() => {
+    try { const s=localStorage.getItem("sb_conn"); return s?JSON.parse(s):null; } catch{return null;}
+  });
+  const [data, setData] = useState(() => {
+    try { const s=localStorage.getItem("sb_data"); return s?JSON.parse(s):null; } catch{return null;}
+  });
+
+  useEffect(() => {
+    const h = e => {
+      if (e.data?.type==="__activate_edit_mode")   setTweaksVisible(true);
+      if (e.data?.type==="__deactivate_edit_mode") setTweaksVisible(false);
+    };
+    window.addEventListener("message",h);
+    window.parent.postMessage({type:"__edit_mode_available"},"*");
+    return () => window.removeEventListener("message",h);
+  },[]);
+
+  function handleConnect(records, connection) {
+    localStorage.setItem("sb_conn",JSON.stringify(connection));
+    localStorage.setItem("sb_data",JSON.stringify(records));
+    setConn(connection); setData(records);
+  }
+
+  function handleDisconnect() {
+    localStorage.removeItem("sb_conn"); localStorage.removeItem("sb_data");
+    setConn(null); setData(null);
+  }
+
+  if (!conn||!data) return <>
+    <ConnectScreen onConnect={handleConnect} tweaks={tweaks} />
+    <TweaksPanel tweaks={tweaks} setTweaks={setTweaks} visible={tweaksVisible} />
+  </>;
+
+  return <>
+    <Dashboard data={data} conn={conn} onDisconnect={handleDisconnect} tweaks={tweaks} />
+    <TweaksPanel tweaks={tweaks} setTweaks={setTweaks} visible={tweaksVisible} />
+  </>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

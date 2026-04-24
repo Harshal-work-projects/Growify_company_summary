@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: brand-summary-dashboard
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter
+    autoDeployTrigger: commit
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: SUPABASE_TABLE
+        value: Summ
+      - key: SUPABASE_SCHEMA
+        value: public
+      - key: SUPABASE_LIMIT
+        value: 500
+      - key: USE_DEMO_DATA
+        value: false
